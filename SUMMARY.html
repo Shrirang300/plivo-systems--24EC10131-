@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>System Architecture Summary</h1>
+    
+    <h3>Receiver Design</h3>
+    <p>The receiver is built as an event-driven loop centered around a 4096-slot jitter buffer. Incoming UDP packets are parsed into either data packets or parity FEC packets. Data packets are stored by their sequence number, while parity packets are used to perform XOR-based recovery for any missing frames within a sliding window of (seq, seq-2) pairs.</p>
+
+    <h3>Design Choices</h3>
+    <ul>
+        <li><strong>Endianness:</strong> Strictly enforced using <code>htonl()</code> for transmission and <code>ntohl()</code> upon reception, ensuring cross-platform data integrity.</li>
+        <li><strong>FEC Implementation:</strong> A pair-wise XOR parity scheme is used, triggered at <code>seq % 4 == 2</code> (evens) and <code>seq % 4 == 3</code> (odds), allowing for single-packet recovery.</li>
+        <li><strong>NACK-based ARQ:</strong> Selective retransmission is managed by a gap scanner that monitors for missing sequence numbers. A cooldown mechanism (60ms) and RTT estimation are used to prevent NACK storms and network congestion.</li>
+        <li><strong>Timing Synchronization:</strong> By calibrating against <code>T0</code> and tracking the first received packet, the system maintains accurate playout deadlines despite potential drift.</li>
+        <li><strong>Resource Management:</strong> Constant memory usage is maintained through pre-allocated circular buffers, ensuring efficient O(1) access to sequence slots and parity data.</li>
+    </ul>
+
+    <h3>System-Level Details</h3>
+    <p>The system operates in two concurrent logical paths within a single loop using <code>select()</code>: the network reception path, which handles incoming traffic and FEC/NACK logic, and the playout path, which flushes completed frames to the application port. The implementation prioritizes stability by enforcing strict staleness and underflow guards, such as checking <code>base < 2</code> in parity recovery and verifying that recovered members are not behind the <code>playout_index</code>.</p>
+</body>
+</html>
